@@ -1,3 +1,4 @@
 docker_command
 nba_rookies.csv
 nba_rookies_postgres_data/
+google_credentials.json
