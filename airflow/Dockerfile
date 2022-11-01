@@ -8,6 +8,7 @@ RUN apt-get update -qq && apt-get install vim -qqq
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir pandas sqlalchemy psycopg2-binary numpy beautifulsoup4 lxml
 
 # Ref: https://airflow.apache.org/docs/docker-stack/recipes.html
 

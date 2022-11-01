@@ -17,40 +17,38 @@ import pyarrow.parquet as pq
 
 PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
 BUCKET = os.environ.get("GCP_GCS_BUCKET")
-dataset_file = "nba_rookies_season_totals.csv"
+dataset_file = "nba_players_per_game.csv"
 
 
-url = 'https://www.basketball-reference.com/leagues/NBA_2023_rookies.html#rookies'
+url = 'https://www.basketball-reference.com/leagues/NBA_2023_per_game.html'
 
 page = requests.get(url)
 
 soup = BeautifulSoup(page.text, "lxml")
 
 
-table = soup.find('table', id='rookies')
+table = soup.find('table', id='per_game_stats')
 
-headers = [th.getText() for th in table.find_all('tr', limit=2)[1].find_all('th')]
+headers = [th.getText() for th in table.find_all('tr', limit=2)[0].find_all('th')]
 
-#BBall Reference lists these average per game stats under the same headers as career totals, so fixed for clarity
-averages = ['MPG', 'PPG', 'RPG', 'APG']
-headers[-4:] = averages
-headers.pop(0)
 #Add underscores to strings that start with a number as those strings are not compatible with BigQuery
 for i, header in enumerate(headers):
     if header[0].isnumeric() == True:
         headers[i] = '_' + header
-rows = table.find_all('tr')[2:]
+
+headers.pop(0)
+
+rows = table.find_all('tr')[1:]
 rows_data = [[td.getText() for td in rows[i].find_all('td')]
                     for i in range(len(rows))]
 
-nba_rookies = pd.DataFrame(rows_data, columns=headers)
-nba_rookies.index = np.arange(1, len(nba_rookies) + 1)
+rows_data = [x for x in rows_data if x]
+
+nba_players = pd.DataFrame(rows_data, columns=headers)
+nba_players.index = np.arange(1, len(nba_players) + 1)
 
 
-nba_rookies.drop([21,22,43,44], inplace=True)
-nba_rookies.drop(columns=['Debut', 'Age'], inplace=True)
-
-nba_rookies.to_csv("nba_rookies_season_totals.csv", index=False)
+nba_players.to_csv("nba_players_per_game.csv", index=False)
 
 path_to_local_home = os.environ.get("AIRFLOW_HOME", "/opt/airflow/")
 parquet_file = dataset_file.replace('.csv', '.parquet')
@@ -74,12 +72,7 @@ def upload_to_gcs(bucket, object_name, local_file):
     :param local_file: source path & file-name
     :return:
     """
-    # WORKAROUND to prevent timeout for files > 6 MB on 800 kbps upload speed.
-    # (Ref: https://github.com/googleapis/python-storage/issues/74)
-    storage.blob._MAX_MULTIPART_SIZE = 5 * 1024 * 1024  # 5 MB
-    storage.blob._DEFAULT_CHUNKSIZE = 5 * 1024 * 1024  # 5 MB
-    # End of Workaround
-
+    
     client = storage.Client()
     bucket = client.bucket(bucket)
 
@@ -96,7 +89,7 @@ default_args = {
 
 # NOTE: DAG declaration - using a Context Manager (an implicit way)
 with DAG(
-    dag_id="data_ingestion_gcs_dag",
+    dag_id="data_ingestion_gcs_dag_per_game",
     schedule_interval="@daily",
     default_args=default_args,
     catchup=False,
@@ -128,7 +121,7 @@ with DAG(
             "tableReference": {
                 "projectId": PROJECT_ID,
                 "datasetId": BIGQUERY_DATASET,
-                "tableId": "rookie_season_totals",
+                "tableId": "player_per_game_totals",
             },
             "externalDataConfiguration": {
                 "sourceFormat": "PARQUET",
