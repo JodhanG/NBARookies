@@ -4,3 +4,4 @@ nba_rookies_postgres_data/
 google_credentials.json
 logs/
 __pycache__/
+nba_players_per_game.csv
