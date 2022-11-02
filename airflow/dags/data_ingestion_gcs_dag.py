@@ -19,43 +19,42 @@ PROJECT_ID = os.environ.get("GCP_PROJECT_ID")
 BUCKET = os.environ.get("GCP_GCS_BUCKET")
 dataset_file = "nba_rookies_season_totals.csv"
 
-
-url = 'https://www.basketball-reference.com/leagues/NBA_2023_rookies.html#rookies'
-
-page = requests.get(url)
-
-soup = BeautifulSoup(page.text, "lxml")
-
-
-table = soup.find('table', id='rookies')
-
-headers = [th.getText() for th in table.find_all('tr', limit=2)[1].find_all('th')]
-
-#BBall Reference lists these average per game stats under the same headers as career totals, so fixed for clarity
-averages = ['MPG', 'PPG', 'RPG', 'APG']
-headers[-4:] = averages
-headers.pop(0)
-#Add underscores to strings that start with a number as those strings are not compatible with BigQuery
-for i, header in enumerate(headers):
-    if header[0].isnumeric() == True:
-        headers[i] = '_' + header
-rows = table.find_all('tr')[2:]
-rows_data = [[td.getText() for td in rows[i].find_all('td')]
-                    for i in range(len(rows))]
-
-nba_rookies = pd.DataFrame(rows_data, columns=headers)
-nba_rookies.index = np.arange(1, len(nba_rookies) + 1)
-
-
-nba_rookies.drop([21,22,43,44], inplace=True)
-nba_rookies.drop(columns=['Debut', 'Age'], inplace=True)
-
-nba_rookies.to_csv("nba_rookies_season_totals.csv", index=False)
-
 path_to_local_home = os.environ.get("AIRFLOW_HOME", "/opt/airflow/")
 parquet_file = dataset_file.replace('.csv', '.parquet')
 BIGQUERY_DATASET = os.environ.get("BIGQUERY_DATASET", 'nba_rookie_data')
 
+def scrape_data():
+    url = 'https://www.basketball-reference.com/leagues/NBA_2023_rookies.html#rookies'
+
+    page = requests.get(url)
+
+    soup = BeautifulSoup(page.text, "lxml")
+
+
+    table = soup.find('table', id='rookies')
+
+    headers = [th.getText() for th in table.find_all('tr', limit=2)[1].find_all('th')]
+
+    #BBall Reference lists these average per game stats under the same headers as career totals, so fixed for clarity
+    averages = ['MPG', 'PPG', 'RPG', 'APG']
+    headers[-4:] = averages
+    headers.pop(0)
+    #Add underscores to strings that start with a number as those strings are not compatible with BigQuery
+    for i, header in enumerate(headers):
+        if header[0].isnumeric() == True:
+            headers[i] = '_' + header
+    rows = table.find_all('tr')[2:]
+    rows_data = [[td.getText() for td in rows[i].find_all('td')]
+                        for i in range(len(rows))]
+
+    nba_rookies = pd.DataFrame(rows_data, columns=headers)
+    nba_rookies.index = np.arange(1, len(nba_rookies) + 1)
+
+
+    nba_rookies.drop([21,22,43,44], inplace=True)
+    nba_rookies.drop(columns=['Debut', 'Age'], inplace=True)
+
+    nba_rookies.to_csv("nba_rookies_season_totals.csv", index=False)
 
 def format_to_parquet(src_file):
     if not src_file.endswith('.csv'):
@@ -103,6 +102,11 @@ with DAG(
     max_active_runs=1,
     tags=['de-nba'],
 ) as dag:
+    
+    get_data_task = PythonOperator(
+        task_id="scrape_data_task",
+        python_callable=scrape_data,
+    )
 
     format_to_parquet_task = PythonOperator(
         task_id="format_to_parquet_task",
@@ -137,4 +141,4 @@ with DAG(
         },
     )
 
-    format_to_parquet_task >> local_to_gcs_task >> bigquery_external_table_task
+    get_data_task >> format_to_parquet_task >> local_to_gcs_task >> bigquery_external_table_task

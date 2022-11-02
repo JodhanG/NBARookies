@@ -20,40 +20,41 @@ BUCKET = os.environ.get("GCP_GCS_BUCKET")
 dataset_file = "nba_players_per_game.csv"
 
 
-url = 'https://www.basketball-reference.com/leagues/NBA_2023_per_game.html'
-
-page = requests.get(url)
-
-soup = BeautifulSoup(page.text, "lxml")
-
-
-table = soup.find('table', id='per_game_stats')
-
-headers = [th.getText() for th in table.find_all('tr', limit=2)[0].find_all('th')]
-
-#Add underscores to strings that start with a number as those strings are not compatible with BigQuery
-for i, header in enumerate(headers):
-    if header[0].isnumeric() == True:
-        headers[i] = '_' + header
-
-headers.pop(0)
-
-rows = table.find_all('tr')[1:]
-rows_data = [[td.getText() for td in rows[i].find_all('td')]
-                    for i in range(len(rows))]
-
-rows_data = [x for x in rows_data if x]
-
-nba_players = pd.DataFrame(rows_data, columns=headers)
-nba_players.index = np.arange(1, len(nba_players) + 1)
-
-
-nba_players.to_csv("nba_players_per_game.csv", index=False)
-
 path_to_local_home = os.environ.get("AIRFLOW_HOME", "/opt/airflow/")
 parquet_file = dataset_file.replace('.csv', '.parquet')
 BIGQUERY_DATASET = os.environ.get("BIGQUERY_DATASET", 'nba_rookie_data')
 
+
+def scrape_data():
+    url = 'https://www.basketball-reference.com/leagues/NBA_2023_per_game.html'
+
+    page = requests.get(url)
+
+    soup = BeautifulSoup(page.text, "lxml")
+
+
+    table = soup.find('table', id='per_game_stats')
+
+    headers = [th.getText() for th in table.find_all('tr', limit=2)[0].find_all('th')]
+
+    #Add underscores to strings that start with a number as those strings are not compatible with BigQuery
+    for i, header in enumerate(headers):
+        if header[0].isnumeric() == True:
+            headers[i] = '_' + header
+
+    headers.pop(0)
+
+    rows = table.find_all('tr')[1:]
+    rows_data = [[td.getText() for td in rows[i].find_all('td')]
+                        for i in range(len(rows))]
+
+    rows_data = [x for x in rows_data if x]
+
+    nba_players = pd.DataFrame(rows_data, columns=headers)
+    nba_players.index = np.arange(1, len(nba_players) + 1)
+
+
+    nba_players.to_csv("nba_players_per_game.csv", index=False)
 
 def format_to_parquet(src_file):
     if not src_file.endswith('.csv'):
@@ -96,7 +97,12 @@ with DAG(
     max_active_runs=1,
     tags=['de-nba'],
 ) as dag:
-
+    
+    get_data_task = PythonOperator(
+        task_id="scrape_data_task",
+        python_callable=scrape_data,
+    )
+    
     format_to_parquet_task = PythonOperator(
         task_id="format_to_parquet_task",
         python_callable=format_to_parquet,
@@ -130,4 +136,4 @@ with DAG(
         },
     )
 
-    format_to_parquet_task >> local_to_gcs_task >> bigquery_external_table_task
+    get_data_task >> format_to_parquet_task >> local_to_gcs_task >> bigquery_external_table_task
