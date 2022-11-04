@@ -7,3 +7,4 @@ __pycache__/
 nba_players_per_game.csv
 upload-data-per-game.ipynb
 upload-data.ipynb
+.DS_Store
