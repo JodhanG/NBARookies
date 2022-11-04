@@ -40,7 +40,16 @@ def scrape_data():
     #Add underscores to strings that start with a number as those strings are not compatible with BigQuery
     for i, header in enumerate(headers):
         if header[0].isnumeric() == True:
-            headers[i] = '_' + header
+            header = '_' + header
+            headers[i] =  header
+            # Rename these headers in this dataset to clarify that they are averages as we will be combining the two datasets later
+        if '%' not in header and i > 6:
+            header = 'a' + header
+            headers[i] = header
+        # Replace percent symbol with 'P' for BigQuery compatibility
+        if '%' in header:
+            new_header = header.replace('%', 'P')
+            headers[i] = new_header
 
     headers.pop(0)
 

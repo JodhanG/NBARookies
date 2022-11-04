@@ -42,7 +42,12 @@ def scrape_data():
     #Add underscores to strings that start with a number as those strings are not compatible with BigQuery
     for i, header in enumerate(headers):
         if header[0].isnumeric() == True:
-            headers[i] = '_' + header
+            header = '_' + header
+            headers[i] =  header
+        # Replace percent symbol with 'P' for BigQuery compatibility
+        if '%' in header:
+            new_header = header.replace('%', 'P')
+            headers[i] = new_header
     rows = table.find_all('tr')[2:]
     rows_data = [[td.getText() for td in rows[i].find_all('td')]
                         for i in range(len(rows))]
@@ -52,7 +57,8 @@ def scrape_data():
 
 
     nba_rookies.drop([21,22,43,44], inplace=True)
-    nba_rookies.drop(columns=['Debut', 'Age'], inplace=True)
+    # Drope these columns as they will be added in later when we combine the datasets
+    nba_rookies.drop(columns=['Debut', 'Age', 'FGP', '_3PP', 'FTP', 'MPG', 'PPG', 'RPG', 'APG', 'G'], inplace=True)
 
     nba_rookies.to_csv("nba_rookies_season_totals.csv", index=False)
 
