@@ -12,6 +12,7 @@ services:
       networks:
         - airflow
 
+    # Settings for local pgAdmin access
     # pgadmin:
     #   image: dpage/pgadmin4
     #   environment:

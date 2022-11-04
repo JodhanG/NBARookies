@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-
+# Data scraping and local ingestion into Postgres
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup

@@ -5,3 +5,5 @@ google_credentials.json
 logs/
 __pycache__/
 nba_players_per_game.csv
+upload-data-per-game.ipynb
+upload-data.ipynb
